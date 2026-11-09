@@ -1,0 +1,77 @@
+---
+title: "Widlfires"
+author: "Gabriella Buccellato"
+format: html
+execute:
+  echo: false
+---
+
+```{r}
+#| message: false
+library(tidyverse)
+library(purrr)
+library(leaflet)
+library(jsonlite)
+```
+
+```{r}
+raw <- read_json("data/wildfires.geojson")
+length(raw$features)
+```
+
+```{r}
+first_fire <- raw$features[[1]]
+names(first_fire)
+first_fire$geometry$coordinates[[1]][[1]]
+```
+
+```{r}
+#| cache: true
+fires <- tibble(features = raw$features) |>
+  unnest_wider(features) |>
+  unnest_wider(properties) |>
+  unnest_wider(geometry, names_sep = "_") |>
+  select(incident, gis_acres, fire_year, agency, state, geometry_coordinates) |>
+  mutate(
+    gis_acres = as.numeric(gis_acres),
+    fire_year = as.integer(fire_year)
+  )
+```
+
+```{r}
+big_fires <- fires |>
+  filter(gis_acres >= 100000) |>
+  mutate(
+    lon = map_dbl(geometry_coordinates, \(coords) mean(map_dbl(coords[[1]], \(pt) pt[[1]]))),
+    lat = map_dbl(geometry_coordinates, \(coords) mean(map_dbl(coords[[1]], \(pt) pt[[2]])))
+  )
+```
+
+```{r}
+top_fires <- big_fires |>
+  slice_max(gis_acres, n = 10)
+
+reduce(
+  seq_len(nrow(top_fires)),
+  .init = leaflet() |>
+    addProviderTiles(providers$Esri.WorldTopoMap) |>
+    setView(lng = -114, lat = 38, zoom = 5),
+  \(m, i) {
+    ring <- top_fires$geometry_coordinates[[i]][[1]]
+    m |>
+      addPolygons(
+        lng = map_dbl(ring, \(pt) pt[[1]]),
+        lat = map_dbl(ring, \(pt) pt[[2]]),
+        popup = paste0(
+          top_fires$incident[[i]], " (", top_fires$fire_year[[i]], "): ",
+          format(round(top_fires$gis_acres[[i]]), big.mark = ","), " acres"
+        )
+      )
+  }
+)
+```
+
+
+
+
+
