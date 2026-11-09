@@ -16,13 +16,6 @@ library(jsonlite)
 
 ```{r}
 raw <- read_json("data/wildfires.geojson")
-length(raw$features)
-```
-
-```{r}
-first_fire <- raw$features[[1]]
-names(first_fire)
-first_fire$geometry$coordinates[[1]][[1]]
 ```
 
 ```{r}
